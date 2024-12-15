@@ -1,0 +1,82 @@
+---
+title: "p8130_hw5_xx2485"
+author: "Xiaoni Xu"
+date: "2024-12-15"
+output: html_document
+---
+
+```{r}
+library(faraway)
+```
+
+## a)
+
+Provide descriptive statistics for all variables of interest (continuous and categorical) –
+no test required.
+
+```{r}
+data(state)
+
+state_data <- as.data.frame(state.x77)
+
+str(state_data)
+
+# Generate summary statistics for all variables
+summary(state_data)
+```
+
+## b)
+
+Examine exploratory plots, e.g., scatter plots, histograms, box-plots to get a sense of
+the data and possible variable transformations. (Be selective! Even if you create 20
+plots, you don’t want to show them all). If you find a transformation to be necessary or
+recommended, perform the transformation and use it through the rest of the problem.
+
+```{r}
+
+```
+
+## c)
+Use automatic procedures to find a ‘best subset’ of the full model. Present the results
+and comment on the following:
+• Do the procedures generate the same model?
+• Are any variables a close call? What was your decision: keep or discard? Provide
+arguments for your choice. (Note: this question might have more or less relevance
+depending on the ‘subset’ you choose).
+• Is there any association between ‘Illiteracy’ and ‘HS graduation rate’? Does your ‘subset’
+contain both?
+```{r}
+
+```
+
+## d)
+Use criterion-based procedures to guide your selection of the ‘best subset’. Summarize
+your results (tabular or graphical).
+```{r}
+
+```
+
+
+## e)
+Use the LASSO method to perform variable selection. Make sure you choose the “best
+lambda” to use and show how you determined this.
+
+```{r}
+
+```
+
+## f)
+
+Compare the ‘subsets’ from parts c, d, and e and recommend a ‘final’ model. Using this
+‘final’ model do the following:
+• Check the model assumptions.
+• Test the model predictive ability using a 10-fold cross-validation.
+
+```{r}
+
+```
+
+## g)
+In a paragraph, summarize your findings to address the primary question posed by the
+investigator (that has limited statistical knowledge).
+

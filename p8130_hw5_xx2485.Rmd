@@ -13,6 +13,7 @@ library(ggplot2)
 library(tidyr)
 library(leaps)
 library(glmnet)
+library(caret)
 ```
 
 ## a)
@@ -371,7 +372,9 @@ lasso_coefs_df |> knitr::kable(caption = "LASSO Selected Variables and Coefficie
 
 Compare the ‘subsets’ from parts c, d, and e and recommend a ‘final’ model. Using this
 ‘final’ model do the following:
+
 • Check the model assumptions.
+
 • Test the model predictive ability using a 10-fold cross-validation.
 
 
@@ -405,7 +408,53 @@ final_model <- lm(life_exp ~ murder + hs_grad + frost + log_population, data = s
 
 # Summary of the final model
 summary(final_model)
+
+# Residual diagnostics
+par(mfrow = c(2, 2))
+plot(final_model)
+
+# Check normality of residuals
+shapiro_test <- shapiro.test(final_model$residuals)
+cat("Shapiro-Wilk test p-value:", shapiro_test$p.value, "\n")
 ```
+The residual vs. fitted plot shows no clear pattern, indicating homoscedasticity (equal variance of residuals).
+
+The normal Q-Q plot shows points roughly along the diagonal, indicating residuals are normally distributed.
+
+Shapiro-Wilk Test:
+
+Given p>0.05, the residuals are normally distributed.
+
+
+Test Predictive Ability Using 10-Fold Cross-Validation
+
+```{r}
+train_control <- trainControl(method = "cv", number = 10)
+
+# Train the model using cross-validation
+cv_model <- train(life_exp ~ murder + hs_grad + frost + log_population, 
+                  data = state_data, 
+                  method = "lm", 
+                  trControl = train_control)
+
+# Display cross-validation results
+cv_model_results <- cv_model$results
+cv_model_results |> knitr::kable(caption = "10-Fold Cross-Validation Results")
+```
+
+
+Cross-Validation Results
+
+| Metric        | Value      | Description                                                                                          |
+|---------------|------------|------------------------------------------------------------------------------------------------------|
+| **RMSE**      | 0.7714     | The **Root Mean Squared Error** reflects the average prediction error of the model. A lower RMSE indicates better predictive accuracy. Here, the model’s average error is approximately **0.771 years** in predicting life expectancy. |
+| **R-squared** | 0.724      | The **R-squared** value shows that **72.4%** of the variation in life expectancy is explained by the model during cross-validation, indicating strong predictive ability. |
+| **MAE**       | 0.650      | The **Mean Absolute Error** measures the average absolute difference between predicted and observed values. The model’s average prediction error is **0.650 years**, which is slightly lower than the RMSE and reflects consistent predictions. |
+| **RMSESD**    | 0.185      | The **standard deviation of RMSE** across the 10 folds indicates the variability in prediction errors across different data splits. The variability in RMSE is relatively low, suggesting a stable model. |
+| **R-squaredSD** | 0.122    | The **standard deviation of R-squared** shows low variability in the proportion of variance explained across folds, supporting model robustness. |
+| **MAESD**     | 0.144      | The **standard deviation of MAE** is also small, indicating consistent predictive performance. |
+
+
 The model is fitted using the formula:
 
 \[

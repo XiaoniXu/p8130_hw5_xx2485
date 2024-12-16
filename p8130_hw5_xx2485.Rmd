@@ -7,6 +7,12 @@ output: html_document
 
 ```{r}
 library(faraway)
+library(dplyr)
+library(knitr)
+library(ggplot2)
+library(tidyr)
+library(leaps)
+library(glmnet)
 ```
 
 ## a)
@@ -25,45 +31,341 @@ str(state_data)
 summary(state_data)
 ```
 
+
+```{r}
+# Clean the variables' names
+state_data = state_data |> janitor::clean_names()
+
+
+# Calculate additional descriptive statistics (mean, median, standard deviation, etc.)
+descriptive_stats <- data.frame(
+  Mean = apply(state_data, 2, mean),   # Calculate the mean for each variable
+  Median = apply(state_data, 2, median), # Calculate the median for each variable
+  SD = apply(state_data, 2, sd),       # Calculate the standard deviation for each variable
+  Min = apply(state_data, 2, min),     # Calculate the minimum value for each variable
+  Max = apply(state_data, 2, max)      # Calculate the maximum value for each variable
+)
+
+# Show the descriptive statistics table
+descriptive_stats |> knitr::kable(caption = "Descriptive Statistics for state.x77 Dataset")
+```
+
 ## b)
 
-Examine exploratory plots, e.g., scatter plots, histograms, box-plots to get a sense of
-the data and possible variable transformations. (Be selective! Even if you create 20
-plots, you don’t want to show them all). If you find a transformation to be necessary or
-recommended, perform the transformation and use it through the rest of the problem.
+Examine exploratory plots (histograms) to get a sense of the data and possible variable transformations. 
+If you find a transformation to be necessary or recommended, perform the transformation and use it through the rest of the problem.
 
 ```{r}
+# Create histograms to explore variable distributions
+state_data %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30, fill = "#4d5aaf", alpha = 0.7) +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal() +
+  labs(title = "Histograms of Variables", x = "Value", y = "Frequency")
+
+
+# Check column names
+names(state_data)
+
+# Corrected code
+state_data %>%
+  pivot_longer(cols = -life_exp, names_to = "predictor", values_to = "value") %>%
+  ggplot(aes(x = value, y = life_exp)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "#e45e32", linetype = "dashed") +
+  facet_wrap(~ predictor, scales = "free_x") +
+  theme_minimal() +
+  labs(title = "Scatter Plots of Predictors vs Life Expectancy", 
+       x = "Predictor Value", 
+       y = "Life Expectancy")
+
 
 ```
+
+Perform log transformation for `area`, `population`, and `illiteracy`.
+```{r}
+# Define a function for side-by-side plotting
+plot_side_by_side <- function(original, transformed, variable_name) {
+  par(mfrow = c(1, 2)) # Set up the plotting area for side-by-side plots
+  
+  # Plot original data
+  hist(original, main = paste("Original", variable_name), xlab = variable_name, 
+       col = "#4d5aaf", border = "#dddcd6", breaks = 30)
+  
+  # Plot transformed data
+  hist(transformed, main = paste("Log-Transformed", variable_name), xlab = paste("Log", variable_name), 
+       col = "#e45e32", border = "#dddcd6", breaks = 30)
+  
+  par(mfrow = c(1, 1)) # Reset the plotting area
+}
+
+# Perform log transformations
+state_data <- state_data %>%
+  mutate(
+    log_population = log(population),
+    log_area = log(area),
+    log_illiteracy = log(illiteracy)
+  )
+
+# Plot histograms for population
+plot_side_by_side(state_data$population, state_data$log_population, "Population")
+
+# Plot histograms for area
+plot_side_by_side(state_data$area, state_data$log_area, "Area")
+
+# Plot histograms for illiteracy
+plot_side_by_side(state_data$illiteracy, state_data$log_illiteracy, "Illiteracy")
+```
+
 
 ## c)
-Use automatic procedures to find a ‘best subset’ of the full model. Present the results
-and comment on the following:
+Use automatic procedures to find a ‘best subset’ of the full model. Present the results and comment on the following:
+
 • Do the procedures generate the same model?
-• Are any variables a close call? What was your decision: keep or discard? Provide
-arguments for your choice. (Note: this question might have more or less relevance
-depending on the ‘subset’ you choose).
+
+• Are any variables a close call? What was your decision: keep or discard? Provide arguments for your choice. (Note: this question might have more or less relevance depending on the ‘subset’ you choose).
+
 • Is there any association between ‘Illiteracy’ and ‘HS graduation rate’? Does your ‘subset’
 contain both?
-```{r}
 
+Perform Best Subset Selection
+```{r}
+# Perform best subset selection
+best_subset <- regsubsets(life_exp ~ ., data = state_data, nbest = 1, method = "exhaustive")
+
+# Summarize the results
+best_subset_summary <- summary(best_subset)
+
+# Display the subset selection results
+best_subset_summary$outmat
+
+# Extract model performance metrics
+model_metrics <- data.frame(
+  Num_Variables = 1:length(best_subset_summary$adjr2),
+  Adj_R2 = best_subset_summary$adjr2,
+  Cp = best_subset_summary$cp,
+  BIC = best_subset_summary$bic
+)
+
+# Display the model metrics
+model_metrics |> knitr::kable(caption = "Model Performance Metrics")
 ```
+
+```{r}
+best_subset_summary$outmat
+```
+
+1. Do the procedures generate the same model?
+
+From the `best_subset_summary$outmat`, the models selected vary depending on the number of predictors included. The optimal model depends on the evaluation criterion:
+
+- Adjusted R-squared:
+  - Best model: 4 predictors (`murder`, `hs_grad`, `frost`, `log_population`).
+  - Achieves the highest \( \text{Adj R}^2 \) of 0.717.
+
+- Cp:
+  - Best model: 4 predictors, as it minimizes Mallows' \( C_p \), which is close to the number of predictors (\( p+1 \)).
+
+- BIC:
+  - Best model: 4 predictors, as it achieves the lowest BIC of -47.873.
+
+The best subset models are consistent across all three criteria, selecting a 4-predictor model that includes `murder`, `hs_grad`, `frost`, and `log_population`.
+
+2. Are any variables a close call?
+
+From the `best_subset_summary$outmat`, examine the inclusion patterns:
+
+- Close Call: `log_area`:
+  - Appears in 5-predictor and larger models but is excluded in the top 4-predictor model.
+  - Discard the variable. Its contribution is minor (marginal increase in \( \text{Adj R}^2 \)) and leads to overfitting.
+
+- Close Call: `log_illiteracy`:
+  - Appears in 6-predictor and larger models but not the top 4-predictor model.
+  - Discard the variable. The improvement in model fit is negligible compared to the added complexity.
+
+3. Is there any association between Illiteracy and HS Graduation Rate?
+
+From the correlation and scatterplot analysis:
+
+```{r}
+# Correlation and test
+correlation <- cor(state_data$log_illiteracy, state_data$hs_grad)
+correlation_test <- cor.test(state_data$log_illiteracy, state_data$hs_grad)
+
+# Results
+cat("Correlation:", correlation, "\n")
+print(correlation_test)
+```
+
+
+Correlation Results
+
+- **Correlation coefficient**: `r round(correlation_test$estimate, 4)`, indicating a **moderate to strong negative relationship** between `log_illiteracy` and `hs_grad`.
+
+- **Statistical significance**: 
+
+  - \( t \)-value = `r round(correlation_test$statistic, 4)`, 
+  
+  - \( p \)-value = `r format(correlation_test$p.value, scientific = TRUE)`.  
+  
+  The \( p \)-value is highly significant (\( p < 0.001 \)).
+  
+- **95% Confidence Interval**: `r paste0("[", round(correlation_test$conf.int[1], 4), ", ", round(correlation_test$conf.int[2], 4), "]")`.
+
+Interpretation:
+States with higher `log_illiteracy` tend to have lower `hs_grad` rates. This suggests a **strong inverse relationship**, likely driven by shared socioeconomic or educational factors.
+
+
+The best subset model does **not** include both `log_illiteracy` and `hs_grad`. Only `hs_grad` is retained in the model.
+
+Justification:
+
+- **Multicollinearity**: The strong correlation (\( r = `r round(correlation, 4)` \)) between `log_illiteracy` and `hs_grad` indicates potential redundancy if both are included in the model.
+
+- **Explanatory Power**: `hs_grad` likely captures sufficient information to explain its relationship with `life_exp`. Including `log_illiteracy` may add unnecessary complexity without significantly improving model performance.
 
 ## d)
 Use criterion-based procedures to guide your selection of the ‘best subset’. Summarize
 your results (tabular or graphical).
 ```{r}
+best_subset <- regsubsets(life_exp ~ ., data = state_data, nbest = 1, method = "exhaustive")
 
+best_subset_summary <- summary(best_subset)
+
+
+# Extract performance metrics
+model_metrics <- data.frame(
+  Num_Variables = 1:length(best_subset_summary$adjr2),
+  Adj_R2 = best_subset_summary$adjr2,
+  Cp = best_subset_summary$cp,
+  BIC = best_subset_summary$bic
+)
+
+# Display the model metrics
+model_metrics |> kable(caption = "Model Performance Metrics")
 ```
+
+
+The best subset model includes three predictors: `murder`, `hs_grad`, `frost`, and `log_population`.
+
+```{r}
+# Adjusted R^2
+ggplot(model_metrics, aes(x = Num_Variables, y = Adj_R2)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Adjusted R^2 for Best Subset Models",
+       x = "Number of Predictors",
+       y = "Adjusted R^2")
+
+# Cp
+ggplot(model_metrics, aes(x = Num_Variables, y = Cp)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Mallows' Cp for Best Subset Models",
+       x = "Number of Predictors",
+       y = "Cp")
+
+# BIC
+ggplot(model_metrics, aes(x = Num_Variables, y = BIC)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "BIC for Best Subset Models",
+       x = "Number of Predictors",
+       y = "BIC")
+```
+
+
+The criterion-based procedures (Adjusted \( R^2 \), Mallows' \( C_p \), and BIC) consistently selected the best subset model containing the following predictors:
+
+- `murder`
+
+- `hs_grad`
+
+- `frost`
+
+- `log_population`
+
+- **Adjusted \( R^2 \)**: The 4-predictor model achieves the highest \( R^2 \) of `r round(max(best_subset_summary$adjr2), 4)`.
+
+- **Cp**: The 4-predictor model minimizes \( C_p \) at `r round(min(best_subset_summary$cp), 4)`, closest to \( p+1 \).
+
+- **BIC**: The 4-predictor model achieves the lowest BIC of `r round(min(best_subset_summary$bic), 4)`.
 
 
 ## e)
 Use the LASSO method to perform variable selection. Make sure you choose the “best
 lambda” to use and show how you determined this.
 
+LASSO with Cross-Validation
+
 ```{r}
+# Prepare data
+X <- as.matrix(state_data %>% select(-life_exp))  # Predictor variables
+Y <- state_data$life_exp  # Response variable
+
+# Perform LASSO with cross-validation
+set.seed(123)  # For reproducibility
+lasso_cv <- cv.glmnet(X, Y, alpha = 1, standardize = TRUE)
+
+# Extract the best lambda
+best_lambda <- lasso_cv$lambda.min
+lambda_1se <- lasso_cv$lambda.1se
+
+# Plot cross-validation results
+plot(lasso_cv)
+
+# Display best lambda
+cat("Best Lambda (Min):", best_lambda, "\n")
+cat("Best Lambda (1SE):", lambda_1se, "\n")
 
 ```
+Fit LASSO Model at Best Lambda
+
+```{r}
+# Fit the LASSO model using the best lambda
+lasso_model <- glmnet(X, Y, alpha = 1, lambda = best_lambda, standardize = TRUE)
+```
+
+
+LASSO Coefficients at the Best Lambda
+
+```{r}
+# Extract non-zero coefficients
+lasso_coefs <- as.matrix(coef(lasso_model))  # Convert to a standard matrix
+selected_vars <- rownames(lasso_coefs)[lasso_coefs[, 1] != 0]  # Identify non-zero coefficients
+selected_vars <- selected_vars[-1]  # Remove the intercept (if present)
+
+# Display selected variables
+cat("Selected Variables:", paste(selected_vars, collapse = ", "), "\n")
+
+# Create a data frame of selected coefficients
+lasso_coefs_df <- data.frame(
+  Variable = rownames(lasso_coefs),
+  Coefficient = as.vector(lasso_coefs)
+) %>% filter(Coefficient != 0)  # Filter non-zero coefficients
+lasso_coefs_df |> knitr::kable(caption = "LASSO Selected Variables and Coefficients")
+
+```
+
+- **Intercept**:
+  - The intercept (\( \beta_0 \)) is approximately `r round(lasso_coefs_df$Coefficient[1], 3)`. This represents the predicted value of `life_exp` when all predictors are at zero. While this value is not meaningful in isolation, it serves as a baseline for predictions.
+
+- **Murder**:
+  - The coefficient for `murder` is `r round(lasso_coefs_df$Coefficient[2], 3)`, indicating that for each unit increase in the murder rate (per 100,000 people), the predicted life expectancy decreases by `r round(lasso_coefs_df$Coefficient[2], 3)` years, assuming all other variables are held constant. This highlights a significant negative association between crime rates and life expectancy.
+
+- **HS Graduation Rate (`hs_grad`)**:
+  - The coefficient for `hs_grad` is `r round(lasso_coefs_df$Coefficient[3], 3)`, suggesting that for each percentage point increase in the high school graduation rate, life expectancy increases by `r round(lasso_coefs_df$Coefficient[3], 3)` years, holding other variables constant. This reflects the positive impact of education on health outcomes.
+
+- **Frost**:
+  - The coefficient for `frost` is `r round(lasso_coefs_df$Coefficient[4], 3)`, indicating that for each additional day of frost per year, life expectancy decreases by approximately `r round(lasso_coefs_df$Coefficient[4], 3)` years. This suggests a slight negative association between colder climates and life expectancy.
+
+- **Log of Population (`log_population`)**:
+  - The coefficient for `log_population` is `r round(lasso_coefs_df$Coefficient[5], 3)`, meaning that for each unit increase in the natural log of population, life expectancy increases by `r round(lasso_coefs_df$Coefficient[5], 3)` years, holding other factors constant. This could indicate that larger population sizes (log-transformed) are associated with improved access to resources or infrastructure that positively affect life expectancy.
 
 ## f)
 
@@ -72,11 +374,55 @@ Compare the ‘subsets’ from parts c, d, and e and recommend a ‘final’ mod
 • Check the model assumptions.
 • Test the model predictive ability using a 10-fold cross-validation.
 
-```{r}
 
+1. **Subset from Part (c)**: 
+
+   - The best subset model selected using exhaustive search includes the predictors: 
+   
+     - `murder`, `hs_grad`, `frost`, `log_population`.
+
+2. **Subset from Part (d)**:
+
+   - Criterion-based procedures (Adjusted \( R^2 \), \( C_p \), BIC) also selected the same predictors: 
+   
+     - `murder`, `hs_grad`, `frost`.
+
+3. **Subset from Part (e)**:
+
+   - The LASSO method selected the following predictors:
+   
+     - `murder`, `hs_grad`, `frost`, `log_population`.
+
+Final Model Recommendation
+
+- The subsets from parts (c) and (e) are the same, making it a majority in number of variables selected. The final model will include:
+
+  - `murder`, `hs_grad`, `frost`, `log_population`.
+
+```{r}
+# Fit the final model
+final_model <- lm(life_exp ~ murder + hs_grad + frost + log_population, data = state_data)
+
+# Summary of the final model
+summary(final_model)
 ```
+The model is fitted using the formula:
+
+\[
+\text{life_exp} = \beta_0 + \beta_1 \cdot \text{murder} + \beta_2 \cdot \text{hs_grad} + \beta_3 \cdot \text{frost} + \beta_4 \cdot \text{log_population}
+\]
+
+The regression model for predicting `life_exp` is given by:
+
+\[
+\hat{\text{life_exp}} = 68.721 - 0.290 \cdot \text{murder} + 0.055 \cdot \text{hs_grad} - 0.005 \cdot \text{frost} + 0.247 \cdot \text{log_population}
+\]
+
+
 
 ## g)
 In a paragraph, summarize your findings to address the primary question posed by the
 investigator (that has limited statistical knowledge).
+
+Our analysis examined the factors influencing life expectancy across U.S. states. We identified four key predictors: the murder rate, high school graduation rate, annual frost days, and population size (log-transformed). States with higher murder rates or more annual frost days tend to have lower life expectancy, while states with higher high school graduation rates and larger populations generally have longer life expectancy. The model we developed explains approximately 74% of the variation in life expectancy, indicating strong predictive power. These findings suggest that education, public safety, and environmental factors play significant roles in shaping life expectancy across regions.
 

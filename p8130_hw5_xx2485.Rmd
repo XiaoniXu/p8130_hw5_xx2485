@@ -1,8 +1,8 @@
 ---
-title: "p8130_hw5_xx2485"
+title: "P8130 Homework 5"
 author: "Xiaoni Xu"
 date: "2024-12-15"
-output: html_document
+output: pdf_document
 ---
 
 ```{r}
@@ -409,15 +409,14 @@ summary(final_model)
 The model is fitted using the formula:
 
 \[
-\text{life_exp} = \beta_0 + \beta_1 \cdot \text{murder} + \beta_2 \cdot \text{hs_grad} + \beta_3 \cdot \text{frost} + \beta_4 \cdot \text{log_population}
+\text{life\_exp} = \beta_0 + \beta_1 \cdot \text{murder} + \beta_2 \cdot \text{hs\_grad} + \beta_3 \cdot \text{frost} + \beta_4 \cdot \text{log\_population}
 \]
 
 The regression model for predicting `life_exp` is given by:
 
 \[
-\hat{\text{life_exp}} = 68.721 - 0.290 \cdot \text{murder} + 0.055 \cdot \text{hs_grad} - 0.005 \cdot \text{frost} + 0.247 \cdot \text{log_population}
+\hat{\text{life\_exp}} = 68.721 - 0.290 \cdot \text{murder} + 0.055 \cdot \text{hs\_grad} - 0.005 \cdot \text{frost} + 0.247 \cdot \text{log\_population}
 \]
-
 
 
 ## g)
